@@ -31,7 +31,7 @@ func truncatingSprintf(str string, args ...interface{}) string {
 func (s *VerifiedEmailSender) Send(ctx context.Context, to string, code string, expireAt time.Time, params interface{}) error {
 	confirmUrl := s.buildVerifiedUrl(to, code)
 	diff := expireAt.Sub(time.Now())
-	strDiffMinutes := fmt.Sprint(diff.Minutes())
+	strDiffMinutes := fmt.Sprintf("%.f", diff.Minutes())
 	subject, template, err := s.TemplateLoader.Load(ctx, to)
 	if err != nil {
 		return err

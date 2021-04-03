@@ -7,20 +7,21 @@ import (
 )
 
 type DefaultSignUpService struct {
-	UniqueContact          bool
-	Repository             SignUpRepository
-	IdGenerator            UserIdGenerator
-	PasswordComparator     CodeComparator
-	VerifiedCodeComparator CodeComparator
-	VerifiedCodeRepository VerifiedCodeRepository
-	VerifiedCodeSender     VerifiedCodeSender
-	Expires                int
-	Validator              Validator
-	Regexps                []regexp.Regexp
-	Generator              VerifiedCodeGenerator
+	Status         SignUpStatus
+	UniqueContact  bool
+	Repository     SignUpRepository
+	GenerateId     func(ctx context.Context) (string, error)
+	Hash           func(plaintext string) (string, error)
+	CodeComparator CodeComparator
+	CodeRepository VerifiedCodeRepository
+	SendCode       func(ctx context.Context, to string, code string, expireAt time.Time, params interface{}) error
+	Expires        int
+	Validate       func(ctx context.Context, user SignUpInfo) ([]ErrorMessage, error)
+	Regexps        []regexp.Regexp
+	GenerateCode   func() string
 }
 
-func NewSignUpService(uniqueContact bool, repository SignUpRepository, idGenerator UserIdGenerator, passwordComparator CodeComparator, passcodeComparator CodeComparator, passcodeService VerifiedCodeRepository, passcodeSender VerifiedCodeSender, expires int, validator Validator, expressions []string, generator VerifiedCodeGenerator) *DefaultSignUpService {
+func NewSignUpService(status SignUpStatus, uniqueContact bool, repository SignUpRepository, generateId func(ctx context.Context) (string, error), hash func(string) (string, error), passcodeComparator CodeComparator, passcodeRepository VerifiedCodeRepository, sendCode func(context.Context, string, string, time.Time, interface{}) error, expires int, validate func(context.Context, SignUpInfo) ([]ErrorMessage, error), expressions []string, options ...func() string) *DefaultSignUpService {
 	regExps := make([]regexp.Regexp, 0)
 	if len(expressions) > 0 {
 		for _, expression := range expressions {
@@ -30,19 +31,23 @@ func NewSignUpService(uniqueContact bool, repository SignUpRepository, idGenerat
 			}
 		}
 	}
-	return &DefaultSignUpService{uniqueContact, repository, idGenerator, passwordComparator, passcodeComparator, passcodeService, passcodeSender, expires, validator, regExps, generator}
+	var generate func() string
+	if len(options) >= 1 {
+		generate = options[0]
+	}
+	return &DefaultSignUpService{Status: status, UniqueContact: uniqueContact, Repository: repository, GenerateId: generateId, Hash: hash, CodeComparator: passcodeComparator, CodeRepository: passcodeRepository, SendCode: sendCode, Expires: expires, Validate: validate, Regexps: regExps, GenerateCode: generate}
 }
 
 func (s *DefaultSignUpService) SignUp(ctx context.Context, user SignUpInfo) (SignUpResult, error) {
-	result := SignUpResult{Status: StatusError}
+	result := SignUpResult{Status: s.Status.Error}
 
-	if s.Validator != nil {
-		arrErr, er0 := s.Validator.Validate(ctx, user)
+	if s.Validate != nil {
+		arrErr, er0 := s.Validate(ctx, user)
 		if er0 != nil {
 			return result, er0
 		}
 		if len(arrErr) > 0 {
-			result.Errors = &arrErr
+			result.Errors = arrErr
 			return result, nil
 		}
 	}
@@ -58,22 +63,22 @@ func (s *DefaultSignUpService) SignUp(ctx context.Context, user SignUpInfo) (Sig
 		return result, er1
 	}
 	if u {
-		result.Status = StatusUsernameError
+		result.Status = s.Status.UsernameError
 		return result, nil
 	}
 	if c {
-		result.Status = StatusContactError
+		result.Status = s.Status.ContactError
 		return result, nil
 	}
 
-	hashPassword, er2 := s.PasswordComparator.Hash(user.Password)
+	hashPassword, er2 := s.Hash(user.Password)
 	if er2 != nil {
-		return result, nil
+		return result, er2
 	}
 
 	user.Password = hashPassword
 
-	userId, er3 := s.IdGenerator.Generate(ctx)
+	userId, er3 := s.GenerateId(ctx)
 	if er3 != nil {
 		return result, er3
 	}
@@ -86,7 +91,7 @@ func (s *DefaultSignUpService) SignUp(ctx context.Context, user SignUpInfo) (Sig
 		i := 1
 		for duplicate && i <= 5 {
 			i++
-			userId, er3 = s.IdGenerator.Generate(ctx)
+			userId, er3 = s.GenerateId(ctx)
 			if er3 != nil {
 				return result, er3
 			}
@@ -102,33 +107,33 @@ func (s *DefaultSignUpService) SignUp(ctx context.Context, user SignUpInfo) (Sig
 
 	_, er5 := s.createVerifiedCode(ctx, userId, user)
 	if er5 != nil {
-		return result, er1
+		return result, er5
 	}
 
 	result.Id = userId
-	result.Status = StatusOK
+	result.Status = s.Status.OK
 	return result, nil
 }
 
 func (s *DefaultSignUpService) createVerifiedCode(ctx context.Context, userId string, user SignUpInfo) (bool, error) {
 	verifiedCode := ""
-	if s.Generator != nil {
-		verifiedCode = s.Generator.Generate()
+	if s.GenerateCode != nil {
+		verifiedCode = s.GenerateCode()
 	} else {
 		verifiedCode = generate(6)
 	}
 
-	hashedCode, er0 := s.VerifiedCodeComparator.Hash(verifiedCode)
+	hashedCode, er0 := s.CodeComparator.Hash(verifiedCode)
 	if er0 != nil {
 		return false, er0
 	}
 	expiredAt := addSeconds(time.Now(), s.Expires)
 
-	_, er1 := s.VerifiedCodeRepository.Save(ctx, userId, hashedCode, expiredAt)
+	_, er1 := s.CodeRepository.Save(ctx, userId, hashedCode, expiredAt)
 	if er1 != nil {
 		return false, er1
 	}
-	er2 := s.VerifiedCodeSender.Send(ctx, userId, verifiedCode, expiredAt, user.Contact)
+	er2 := s.SendCode(ctx, userId, verifiedCode, expiredAt, user.Contact)
 	if er2 != nil {
 		return false, er2
 	}
@@ -152,7 +157,7 @@ func (s *DefaultSignUpService) VerifyUser(ctx context.Context, userId string, co
 			timeOut := 10 * time.Second
 			ctxDelete, cancel := context.WithTimeout(ctx, timeOut)
 			defer cancel()
-			s.VerifiedCodeRepository.Delete(ctxDelete, userId)
+			s.CodeRepository.Delete(ctxDelete, userId)
 		}()
 	}
 	return ok2, er2
@@ -167,38 +172,38 @@ func (s *DefaultSignUpService) VerifyUserAndSavePassword(ctx context.Context, us
 			}
 		}
 	}
-	ok1, er1 := s.verify(ctx, userId, code)
+	ok1, er2 := s.verify(ctx, userId, code)
 	if !ok1 {
-		return 0, er1
+		return 0, er2
 	}
-	hashPassword, er1b := s.PasswordComparator.Hash(password)
+	hashPassword, er1b := s.Hash(password)
 	if er1b != nil {
 		return 0, er1b
 	}
-	ok2, er2 := s.Repository.SavePasswordAndActivate(ctx, userId, hashPassword)
-	if er2 == nil && ok2 {
+	ok2, er3 := s.Repository.SavePasswordAndActivate(ctx, userId, hashPassword)
+	if er3 == nil && ok2 {
 		go func() {
 			timeOut := 10 * time.Second
 			ctxDelete, cancel := context.WithTimeout(ctx, timeOut)
 			defer cancel()
-			s.VerifiedCodeRepository.Delete(ctxDelete, userId)
+			s.CodeRepository.Delete(ctxDelete, userId)
 		}()
 	}
 	if ok2 {
-		return 1, er2
+		return 1, er3
 	}
-	return 0, er2
+	return 0, er3
 }
 
 func (s *DefaultSignUpService) verify(ctx context.Context, userId string, code string) (bool, error) {
-	storedCode, expireAt, er0 := s.VerifiedCodeRepository.Load(ctx, userId)
+	storedCode, expireAt, er0 := s.CodeRepository.Load(ctx, userId)
 	if er0 != nil {
 		return false, er0
 	}
 	if time.Now().After(expireAt) {
 		return false, nil
 	}
-	valid, er1 := s.VerifiedCodeComparator.Compare(code, storedCode)
+	valid, er1 := s.CodeComparator.Compare(code, storedCode)
 	if !valid || er1 != nil {
 		return false, er1
 	}

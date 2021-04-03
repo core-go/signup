@@ -1,12 +1,9 @@
 package signup
 
 import (
-	"github.com/google/uuid"
-	"github.com/teris-io/shortid"
 	"math"
 	"math/rand"
 	"strconv"
-	"strings"
 )
 
 func times(str string, n int) (out string) {
@@ -27,15 +24,6 @@ func generate(length int) string {
 	return padLeft(strconv.Itoa(rand.Intn(max)), length, "0")
 }
 
-func shortId() (string, error) {
-	sid, err := shortid.New(1, shortid.DefaultABC, 2342)
-	if err != nil {
-		return "", err
-	}
-	return sid.Generate()
-}
-
-func randomId() string {
-	id := uuid.New()
-	return strings.Replace(id.String(), "-", "", -1)
+func GenerateVerifiedCode() string {
+	return generate(6)
 }

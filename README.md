@@ -21,7 +21,7 @@ import "github.com/common-go/signup"
 ```
 
 ## Implementations of SignUpRepository
-- [sql](https://github.com/common-go/signup-sql): requires [gorm](https://github.com/go-gorm/gorm)
+- sql: SqlSignUpRepository
 - [mongo](https://github.com/common-go/signup-mongo)
 - [dynamodb](https://github.com/common-go/signup-dynamodb)
 - [firestore](https://github.com/common-go/signup-firestore)
