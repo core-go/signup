@@ -47,7 +47,7 @@ type SqlSignUpRepository struct {
 	BuildParam func(i int) string
 }
 
-func NewSqlSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SqlSignUpRepository {
+func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SqlSignUpRepository {
 	if len(c.UserName) == 0 {
 		c.UserName = "username"
 	}
@@ -88,6 +88,7 @@ func NewSqlSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string,
 	password := c.Password
 	status := c.Status
 	build := getBuild(db)
+	driver := getDriver(db)
 	r := &SqlSignUpRepository{
 		DB:                 db,
 		UserTable:          userTable,
@@ -108,12 +109,12 @@ func NewSqlSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string,
 		UpdatedByName:   c.UpdatedBy,
 		VersionName:     c.Version,
 		BuildParam:      build,
-		Driver:          getDriver(db),
+		Driver:          driver,
 	}
 	return r
 }
 
-func NewSqlSignUpRepository(userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userId string, options ...string) *SqlSignUpRepository {
+func NewSignUpRepository(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userId string, options ...string) *SqlSignUpRepository {
 	var contactName string
 	if len(options) > 0 && len(options[0]) > 0 {
 		contactName = options[0]
@@ -121,7 +122,10 @@ func NewSqlSignUpRepository(userTable, passwordTable string, statusConfig signup
 	if len(contactName) == 0 {
 		contactName = "email"
 	}
+	build := getBuild(db)
+	driver := getDriver(db)
 	return &SqlSignUpRepository{
+		DB:                 db,
 		UserTable:          userTable,
 		PasswordTable:      passwordTable,
 		Status:             statusConfig,
@@ -132,6 +136,8 @@ func NewSqlSignUpRepository(userTable, passwordTable string, statusConfig signup
 		ContactName:        contactName,
 		PasswordName:       "password",
 		StatusName:         "status",
+		BuildParam:         build,
+		Driver:             driver,
 	}
 }
 
@@ -220,9 +226,9 @@ func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info sign
 		user = signup.BuildMap(ctx, user, userId, info, *s.Schema, s.GenderMapper)
 	}
 
-	tx, err0 := s.DB.Begin()
-	if err0 != nil {
-		return false, err0
+	tx, er0 := s.DB.Begin()
+	if er0 != nil {
+		return false, er0
 	}
 	if s.UserTable != s.PasswordTable && len(info.Password) > 0 {
 		pass := make(map[string]interface{})
@@ -230,19 +236,19 @@ func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info sign
 		pass[s.PasswordName] = info.Password
 		query, value := BuildInsert(s.UserTable, user, s.BuildParam)
 		passQuery, passValue := BuildInsert(s.PasswordTable, pass, s.BuildParam)
-		_, err1 := tx.Exec(query, value...)
-		if err1 != nil {
+		_, er1 := tx.Exec(query, value...)
+		if er1 != nil {
 			tx.Rollback()
-			return s.handleDuplicate(err1)
+			return handleDuplicate(s.Driver, er1)
 		}
-		_, err2 := tx.Exec(passQuery, passValue...)
-		if err2 != nil {
+		_, er2 := tx.Exec(passQuery, passValue...)
+		if er2 != nil {
 			tx.Rollback()
-			return s.handleDuplicate(err2)
+			return handleDuplicate(s.Driver, er2)
 		}
-		if err3 := tx.Commit(); err3 != nil {
+		if er3 := tx.Commit(); er3 != nil {
 			tx.Rollback()
-			return false, err3
+			return false, er3
 		}
 		return false, nil
 	}
@@ -253,7 +259,7 @@ func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info sign
 	_, err4 := tx.Exec(query, value...)
 	if err4 != nil {
 		tx.Rollback()
-		return s.handleDuplicate(err4)
+		return handleDuplicate(s.Driver, err4)
 	}
 	if err5 := tx.Commit(); err5 != nil {
 		tx.Rollback()
@@ -267,14 +273,14 @@ func (s *SqlSignUpRepository) SavePasswordAndActivate(ctx context.Context, userI
 	user[s.UserIdName] = userId
 	user[s.PasswordName] = password
 	query, value := BuildInsert(s.PasswordTable, user, s.BuildParam)
-	tx, err1 := s.DB.Begin()
-	if err1 != nil {
-		return false, err1
+	tx, er1 := s.DB.Begin()
+	if er1 != nil {
+		return false, er1
 	}
-	_, err2 := tx.Exec(query, value...)
-	if err2 != nil {
+	_, er2 := tx.Exec(query, value...)
+	if er2 != nil {
 		tx.Rollback()
-		return s.handleDuplicate(err2)
+		return handleDuplicate(s.Driver, er2)
 	}
 	if err := tx.Commit(); err != nil {
 		return false, err
@@ -336,8 +342,8 @@ func (s *SqlSignUpRepository) updateStatus(ctx context.Context, id string, from,
 	return r > 0, nil
 }
 
-func (s *SqlSignUpRepository) handleDuplicate(err error) (bool, error) {
-	switch dialect := s.Driver; dialect {
+func handleDuplicate(driver string, err error) (bool, error) {
+	switch driver {
 	case driverPostgres:
 		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint") {
 			return true, nil
