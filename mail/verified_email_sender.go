@@ -1,4 +1,4 @@
-package signup
+package mail
 
 import (
 	"context"
@@ -7,16 +7,17 @@ import (
 	"time"
 
 	"github.com/common-go/mail"
+	"github.com/common-go/signup"
 )
 
 type VerifiedEmailSender struct {
 	MailSender     mail.SimpleMailSender
-	Config         UserVerifiedConfig
+	Config         signup.UserVerifiedConfig
 	From           mail.Email
 	TemplateLoader mail.TemplateLoader
 }
 
-func NewVerifiedEmailSender(mailSender mail.SimpleMailSender, config UserVerifiedConfig, from mail.Email, templateLoader mail.TemplateLoader) *VerifiedEmailSender {
+func NewVerifiedEmailSender(mailSender mail.SimpleMailSender, config signup.UserVerifiedConfig, from mail.Email, templateLoader mail.TemplateLoader) *VerifiedEmailSender {
 	return &VerifiedEmailSender{mailSender, config, from, templateLoader}
 }
 
