@@ -1,4 +1,4 @@
-package signup
+package sql
 
 import (
 	"context"
@@ -8,21 +8,24 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/common-go/signup"
 )
 
 const (
-	DriverPostgres   = "postgres"
-	DriverMysql      = "mysql"
-	DriverMssql      = "mssql"
-	DriverOracle     = "oracle"
-	DriverNotSupport = "no support"
+	driverPostgres   = "postgres"
+	driverMysql      = "mysql"
+	driverMssql      = "mssql"
+	driverOracle     = "oracle"
+	driverSqlite3    = "sqlite3"
+	driverNotSupport = "no support"
 )
 
 type SqlSignUpRepository struct {
 	DB                 *sql.DB
 	UserTable          string
 	PasswordTable      string
-	Status             UserStatusConf
+	Status             signup.UserStatusConf
 	MaxPasswordAge     int
 	MaxPasswordAgeName string
 
@@ -37,13 +40,14 @@ type SqlSignUpRepository struct {
 	UpdatedByName   string
 	VersionName     string
 
-	GenderMapper GenderMapper
-	Schema       *SignUpSchemaConfig
+	GenderMapper signup.GenderMapper
+	Schema       *signup.SignUpSchemaConfig
 
-	Driver string
+	Driver     string
+	BuildParam func(i int) string
 }
 
-func NewSqlSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig UserStatusConf, maxPasswordAge int, c *SignUpSchemaConfig, options...GenderMapper) *SqlSignUpRepository {
+func NewSqlSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SqlSignUpRepository {
 	if len(c.UserName) == 0 {
 		c.UserName = "username"
 	}
@@ -56,7 +60,7 @@ func NewSqlSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string,
 	if len(c.Status) == 0 {
 		c.Status = "status"
 	}
-	var genderMapper GenderMapper
+	var genderMapper signup.GenderMapper
 	if len(options) > 0 {
 		genderMapper = options[0]
 	}
@@ -83,7 +87,7 @@ func NewSqlSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string,
 	contact := c.Contact
 	password := c.Password
 	status := c.Status
-
+	build := getBuild(db)
 	r := &SqlSignUpRepository{
 		DB:                 db,
 		UserTable:          userTable,
@@ -103,12 +107,13 @@ func NewSqlSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string,
 		UpdatedTimeName: c.UpdatedBy,
 		UpdatedByName:   c.UpdatedBy,
 		VersionName:     c.Version,
-		Driver:          GetDriver(db),
+		BuildParam:      build,
+		Driver:          getDriver(db),
 	}
 	return r
 }
 
-func NewSqlSignUpRepository(userTable, passwordTable string, statusConfig UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userId string, options...string) *SqlSignUpRepository {
+func NewSqlSignUpRepository(userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userId string, options ...string) *SqlSignUpRepository {
 	var contactName string
 	if len(options) > 0 && len(options[0]) > 0 {
 		contactName = options[0]
@@ -145,8 +150,8 @@ func (s *SqlSignUpRepository) SentVerifiedCode(ctx context.Context, id string) (
 	return s.updateStatus(ctx, id, s.Status.Registered, s.Status.Verifying, 2, "")
 }
 func (s *SqlSignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
-	query := fmt.Sprintf("Select %s from %s where %s = %s", s.UserName, s.UserTable, s.UserName, BuildParam(0, s.Driver))
-	rows, err := s.DB.Query(query, userName)
+	query := fmt.Sprintf("Select %s from %s where %s = %s", s.UserName, s.UserTable, s.UserName, s.BuildParam(0))
+	rows, err := s.DB.QueryContext(ctx, query, userName)
 	if err != nil {
 		return false, err
 	}
@@ -167,8 +172,8 @@ func (s *SqlSignUpRepository) CheckUserNameAndContact(ctx context.Context, userN
 }
 
 func (s *SqlSignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
-	query := fmt.Sprintf("select %s,%s from %s where %s = %s or %s = %s", s.UserName, fieldName, s.UserTable, s.UserName, BuildParam(0, s.Driver), fieldName, BuildParam(1, s.Driver))
-	rows, err := s.DB.Query(query, userName, fieldValue)
+	query := fmt.Sprintf("select %s,%s from %s where %s = %s or %s = %s", s.UserName, fieldName, s.UserTable, s.UserName, s.BuildParam(0), fieldName, s.BuildParam(1))
+	rows, err := s.DB.QueryContext(ctx, query, userName, fieldValue)
 	if err != nil {
 		return false, false, err
 	}
@@ -202,7 +207,7 @@ func (s *SqlSignUpRepository) existUserNameAndField(ctx context.Context, userNam
 	return nameExist, emailExist, rows.Err()
 }
 
-func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info SignUpInfo) (bool, error) {
+func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
 	user := make(map[string]interface{})
 	user[s.UserIdName] = userId
 	user[s.UserName] = info.Username
@@ -212,7 +217,7 @@ func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info Sign
 		user[s.MaxPasswordAgeName] = s.MaxPasswordAge
 	}
 	if s.Schema != nil {
-		user = BuildMap(ctx, user, userId, info, *s.Schema, s.GenderMapper)
+		user = signup.BuildMap(ctx, user, userId, info, *s.Schema, s.GenderMapper)
 	}
 
 	tx, err0 := s.DB.Begin()
@@ -223,8 +228,8 @@ func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info Sign
 		pass := make(map[string]interface{})
 		pass[s.UserIdName] = userId
 		pass[s.PasswordName] = info.Password
-		query, value := s.insertUser(s.UserTable, user, s.Driver)
-		passQuery, passValue := s.insertUser(s.PasswordTable, pass, s.Driver)
+		query, value := BuildInsert(s.UserTable, user, s.BuildParam)
+		passQuery, passValue := BuildInsert(s.PasswordTable, pass, s.BuildParam)
 		_, err1 := tx.Exec(query, value...)
 		if err1 != nil {
 			tx.Rollback()
@@ -244,7 +249,7 @@ func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info Sign
 	if len(info.Password) > 0 {
 		user[s.PasswordName] = info.Password
 	}
-	query, value := s.insertUser(s.UserTable, user, s.Driver)
+	query, value := BuildInsert(s.UserTable, user, s.BuildParam)
 	_, err4 := tx.Exec(query, value...)
 	if err4 != nil {
 		tx.Rollback()
@@ -261,7 +266,7 @@ func (s *SqlSignUpRepository) SavePasswordAndActivate(ctx context.Context, userI
 	user := make(map[string]interface{})
 	user[s.UserIdName] = userId
 	user[s.PasswordName] = password
-	query, value := s.insertUser(s.PasswordTable, user, s.Driver)
+	query, value := BuildInsert(s.PasswordTable, user, s.BuildParam)
 	tx, err1 := s.DB.Begin()
 	if err1 != nil {
 		return false, err1
@@ -275,23 +280,6 @@ func (s *SqlSignUpRepository) SavePasswordAndActivate(ctx context.Context, userI
 		return false, err
 	}
 	return s.Activate(ctx, userId)
-}
-
-func (s *SqlSignUpRepository) insertUser(tableName string, user map[string]interface{}, driverName string) (string, []interface{}) {
-	var cols []string
-	var values []interface{}
-	for col, v := range user {
-		cols = append(cols, col)
-		values = append(values, v)
-	}
-	column := fmt.Sprintf("(%v)", strings.Join(cols, ","))
-	numCol := len(cols)
-	var arrValue []string
-	for i := 0; i < numCol; i++ {
-		arrValue = append(arrValue, BuildParam(i, driverName))
-	}
-	value := fmt.Sprintf("(%v)", strings.Join(arrValue, ","))
-	return fmt.Sprintf("INSERT INTO %v %v VALUES %v", tableName, column, value), values
 }
 
 func (s *SqlSignUpRepository) updateStatus(ctx context.Context, id string, from, to string, version int, password string) (bool, error) {
@@ -314,24 +302,24 @@ func (s *SqlSignUpRepository) updateStatus(ctx context.Context, id string, from,
 		return false, err1
 	}
 	colNumber := 0
-	values := []interface{}{}
+	var values []interface{}
 	table := s.UserTable
 	querySet := make([]string, 0)
 	for colName, v2 := range user {
 		values = append(values, v2)
-		querySet = append(querySet, fmt.Sprintf("%v="+BuildParam(colNumber, s.Driver), colName))
+		querySet = append(querySet, fmt.Sprintf("%v="+s.BuildParam(colNumber), colName))
 		colNumber++
 	}
 	queryWhere := fmt.Sprintf(" %s = %s and %s = %s ",
 		s.UserIdName,
-		BuildParam(colNumber, s.Driver),
+		s.BuildParam(colNumber),
 		s.StatusName,
-		BuildParam(colNumber+1, s.Driver),
+		s.BuildParam(colNumber+1),
 	)
 	values = append(values, id)
 	values = append(values, from)
 	query := fmt.Sprintf("update %v set %v where %v", table, strings.Join(querySet, ","), queryWhere)
-	result, err1 := s.DB.Exec(query, values...)
+	result, err1 := s.DB.ExecContext(ctx, query, values...)
 	if err1 != nil {
 		tx.Rollback()
 		return false, err1
@@ -348,40 +336,29 @@ func (s *SqlSignUpRepository) updateStatus(ctx context.Context, id string, from,
 	return r > 0, nil
 }
 
-func BuildParam(index int, driver string) string {
-	switch driver {
-	case DriverPostgres:
-		return "$" + strconv.Itoa(index)
-	case DriverOracle:
-		return ":val" + strconv.Itoa(index)
-	default:
-		return "?"
-	}
-}
-
 func (s *SqlSignUpRepository) handleDuplicate(err error) (bool, error) {
 	switch dialect := s.Driver; dialect {
-	case DriverPostgres:
+	case driverPostgres:
 		if strings.Contains(err.Error(), "pq: duplicate key value violates unique constraint") {
 			return true, nil
 		}
 		return false, err
-	case DriverMysql:
+	case driverMysql:
 		if strings.Contains(err.Error(), "Error 1062: Duplicate entry") {
 			return true, nil
 		}
 		return false, err
-	case DriverMssql:
+	case driverMssql:
 		if strings.Contains(err.Error(), "Violation of PRIMARY KEY constraint") {
 			return true, nil
 		}
 		return false, err
-	case DriverOracle:
+	case driverOracle:
 		if strings.Contains(err.Error(), "ORA-00001: unique constraint") {
 			return true, nil
 		}
 		return false, err
-	case "sqlite3":
+	case driverSqlite3:
 		if strings.Contains(err.Error(), "UNIQUE constraint failed:") {
 			return true, nil
 		}
@@ -390,22 +367,64 @@ func (s *SqlSignUpRepository) handleDuplicate(err error) (bool, error) {
 		return false, err
 	}
 }
-
-func GetDriver(db *sql.DB) string {
+func BuildInsert(tableName string, user map[string]interface{}, buildParam func(i int) string) (string, []interface{}) {
+	var cols []string
+	var values []interface{}
+	for col, v := range user {
+		cols = append(cols, col)
+		values = append(values, v)
+	}
+	column := fmt.Sprintf("(%v)", strings.Join(cols, ","))
+	numCol := len(cols)
+	var arrValue []string
+	for i := 0; i < numCol; i++ {
+		arrValue = append(arrValue, buildParam(i))
+	}
+	value := fmt.Sprintf("(%v)", strings.Join(arrValue, ","))
+	return fmt.Sprintf("INSERT INTO %v %v VALUES %v", tableName, column, value), values
+}
+func buildParam(i int) string {
+	return "?"
+}
+func buildOracleParam(i int) string {
+	return ":val" + strconv.Itoa(i)
+}
+func buildMsSqlParam(i int) string {
+	return "@p" + strconv.Itoa(i)
+}
+func buildDollarParam(i int) string {
+	return "$" + strconv.Itoa(i)
+}
+func getBuild(db *sql.DB) func(i int) string {
+	driver := reflect.TypeOf(db.Driver()).String()
+	switch driver {
+	case "*pq.Driver":
+		return buildDollarParam
+	case "*godror.drv":
+		return buildOracleParam
+	case "*mssql.Driver":
+		return buildMsSqlParam
+	default:
+		return buildParam
+	}
+}
+func getDriver(db *sql.DB) string {
 	if db == nil {
-		return DriverNotSupport
+		return driverNotSupport
 	}
 	driver := reflect.TypeOf(db.Driver()).String()
 	switch driver {
 	case "*pq.Driver":
-		return DriverPostgres
-	case "*mysql.MySQLDriver":
-		return DriverMysql
-	case "*mssql.Driver":
-		return DriverMssql
+		return driverPostgres
 	case "*godror.drv":
-		return DriverOracle
+		return driverOracle
+	case "*mysql.MySQLDriver":
+		return driverMysql
+	case "*mssql.Driver":
+		return driverMssql
+	case "*sqlite3.SQLiteDriver":
+		return driverSqlite3
 	default:
-		return DriverNotSupport
+		return driverNotSupport
 	}
 }
