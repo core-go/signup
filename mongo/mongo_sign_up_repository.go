@@ -32,7 +32,11 @@ type MongoSignUpRepository struct {
 	Schema       *signup.SignUpSchemaConfig
 }
 
-func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, genderMapper signup.GenderMapper) *MongoSignUpRepository {
+func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *MongoSignUpRepository {
+	var genderMapper signup.GenderMapper
+	if len(options) > 0 {
+		genderMapper = options[0]
+	}
 	userCollection := db.Collection(userCollectionName)
 	passwordCollection := userCollection
 	if passwordCollectionName != userCollectionName {
