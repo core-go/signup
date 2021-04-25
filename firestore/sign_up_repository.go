@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-type FirestoreSignUpRepository struct {
+type SignUpRepository struct {
 	Client             *firestore.Client
 	UserCollection     *firestore.CollectionRef
 	PasswordCollection *firestore.CollectionRef
@@ -29,7 +29,7 @@ type FirestoreSignUpRepository struct {
 	Schema       *signup.SignUpSchemaConfig
 }
 
-func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *FirestoreSignUpRepository {
+func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	var genderMapper signup.GenderMapper
 	if len(options) > 0 {
 		genderMapper = options[0]
@@ -62,7 +62,7 @@ func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, p
 		status = "status"
 	}
 
-	r := &FirestoreSignUpRepository{
+	r := &SignUpRepository{
 		Client:             client,
 		UserCollection:     userCollection,
 		PasswordCollection: passwordCollection,
@@ -83,7 +83,7 @@ func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, p
 	return r
 }
 
-func NewSignUpRepository(client *firestore.Client, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userName, contactName string) *FirestoreSignUpRepository {
+func NewSignUpRepository(client *firestore.Client, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userName, contactName string) *SignUpRepository {
 	userCollection := client.Collection(userCollectionName)
 	passwordCollection := userCollection
 	if passwordCollectionName != userCollectionName {
@@ -92,7 +92,7 @@ func NewSignUpRepository(client *firestore.Client, userCollectionName, passwordC
 	if len(contactName) == 0 {
 		contactName = "email"
 	}
-	return &FirestoreSignUpRepository{
+	return &SignUpRepository{
 		Client:             client,
 		UserCollection:     userCollection,
 		PasswordCollection: passwordCollection,
@@ -106,7 +106,7 @@ func NewSignUpRepository(client *firestore.Client, userCollectionName, passwordC
 	}
 }
 
-func (r *FirestoreSignUpRepository) Activate(ctx context.Context, id string) (bool, error) {
+func (r *SignUpRepository) Activate(ctx context.Context, id string) (bool, error) {
 	version := 3
 	if r.Status.Registered == r.Status.Verifying {
 		version = 2
@@ -114,14 +114,14 @@ func (r *FirestoreSignUpRepository) Activate(ctx context.Context, id string) (bo
 	return r.updateStatus(ctx, id, r.Status.Verifying, r.Status.Activated, version)
 }
 
-func (r *FirestoreSignUpRepository) SentVerifiedCode(ctx context.Context, id string) (bool, error) {
+func (r *SignUpRepository) SentVerifiedCode(ctx context.Context, id string) (bool, error) {
 	if r.Status.Registered == r.Status.Verifying {
 		return true, nil
 	}
 	return r.updateStatus(ctx, id, r.Status.Registered, r.Status.Verifying, 2)
 }
 
-func (r *FirestoreSignUpRepository) updateStatus(ctx context.Context, id string, from, to string, version int) (bool, error) {
+func (r *SignUpRepository) updateStatus(ctx context.Context, id string, from, to string, version int) (bool, error) {
 	err := r.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		docSnap, err := tx.Get(r.UserCollection.Doc(id))
 		if err != nil {
@@ -147,7 +147,7 @@ func (r *FirestoreSignUpRepository) updateStatus(ctx context.Context, id string,
 	return true, nil
 }
 
-func (r *FirestoreSignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
+func (r *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
 	_, err := r.UserCollection.Where(r.UserName, "=", userName).Limit(1).Documents(ctx).GetAll()
 	if err != nil {
 		if strings.Index(err.Error(), "Document already exists") >= 0 {
@@ -158,11 +158,11 @@ func (r *FirestoreSignUpRepository) CheckUserName(ctx context.Context, userName 
 	return true, nil
 }
 
-func (r *FirestoreSignUpRepository) CheckUserNameAndContact(ctx context.Context, userName string, contact string) (bool, bool, error) {
+func (r *SignUpRepository) CheckUserNameAndContact(ctx context.Context, userName string, contact string) (bool, bool, error) {
 	return r.existUserNameAndField(ctx, userName, r.ContactName, contact)
 }
 
-func (r *FirestoreSignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
+func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
 	userName = strings.ToLower(userName)
 	fieldValue = strings.ToLower(fieldValue)
 
@@ -198,7 +198,7 @@ func (r *FirestoreSignUpRepository) existUserNameAndField(ctx context.Context, u
 	return nameErr, contactErr, nil
 }
 
-func (r *FirestoreSignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
+func (r *SignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
 	user := make(map[string]interface{})
 	user[r.UserName] = info.Username
 	user[r.ContactName] = info.Contact
@@ -229,7 +229,7 @@ func (r *FirestoreSignUpRepository) Save(ctx context.Context, userId string, inf
 	return duplicate, err
 }
 
-func (r *FirestoreSignUpRepository) SavePasswordAndActivate(ctx context.Context, userId, password string) (bool, error) {
+func (r *SignUpRepository) SavePasswordAndActivate(ctx context.Context, userId, password string) (bool, error) {
 	pass := make(map[string]interface{})
 	pass[r.PasswordName] = password
 	err := r.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -241,7 +241,7 @@ func (r *FirestoreSignUpRepository) SavePasswordAndActivate(ctx context.Context,
 	return r.Activate(ctx, userId)
 }
 
-func (r *FirestoreSignUpRepository) insertUser(ctx context.Context, user map[string]interface{}, id string) (bool, error) {
+func (r *SignUpRepository) insertUser(ctx context.Context, user map[string]interface{}, id string) (bool, error) {
 	err := r.Client.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		return tx.Create(r.UserCollection.Doc(id), user)
 	})

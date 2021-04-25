@@ -21,7 +21,7 @@ const (
 	driverNotSupport = "no support"
 )
 
-type SqlSignUpRepository struct {
+type SignUpRepository struct {
 	DB                 *sql.DB
 	UserTable          string
 	PasswordTable      string
@@ -47,7 +47,7 @@ type SqlSignUpRepository struct {
 	BuildParam func(i int) string
 }
 
-func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SqlSignUpRepository {
+func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	if len(c.UserName) == 0 {
 		c.UserName = "username"
 	}
@@ -89,7 +89,7 @@ func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, st
 	status := c.Status
 	build := getBuild(db)
 	driver := getDriver(db)
-	r := &SqlSignUpRepository{
+	r := &SignUpRepository{
 		DB:                 db,
 		UserTable:          userTable,
 		PasswordTable:      passwordTable,
@@ -114,7 +114,7 @@ func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, st
 	return r
 }
 
-func NewSignUpRepository(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userId string, options ...string) *SqlSignUpRepository {
+func NewSignUpRepository(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userId string, options ...string) *SignUpRepository {
 	var contactName string
 	if len(options) > 0 && len(options[0]) > 0 {
 		contactName = options[0]
@@ -124,7 +124,7 @@ func NewSignUpRepository(db *sql.DB, userTable, passwordTable string, statusConf
 	}
 	build := getBuild(db)
 	driver := getDriver(db)
-	return &SqlSignUpRepository{
+	return &SignUpRepository{
 		DB:                 db,
 		UserTable:          userTable,
 		PasswordTable:      passwordTable,
@@ -141,7 +141,7 @@ func NewSignUpRepository(db *sql.DB, userTable, passwordTable string, statusConf
 	}
 }
 
-func (s *SqlSignUpRepository) Activate(ctx context.Context, id string) (bool, error) {
+func (s *SignUpRepository) Activate(ctx context.Context, id string) (bool, error) {
 	version := 3
 	if s.Status.Registered == s.Status.Verifying {
 		version = 2
@@ -149,13 +149,13 @@ func (s *SqlSignUpRepository) Activate(ctx context.Context, id string) (bool, er
 	return s.updateStatus(ctx, id, s.Status.Verifying, s.Status.Activated, version, "")
 }
 
-func (s *SqlSignUpRepository) SentVerifiedCode(ctx context.Context, id string) (bool, error) {
+func (s *SignUpRepository) SentVerifiedCode(ctx context.Context, id string) (bool, error) {
 	if s.Status.Registered == s.Status.Verifying {
 		return true, nil
 	}
 	return s.updateStatus(ctx, id, s.Status.Registered, s.Status.Verifying, 2, "")
 }
-func (s *SqlSignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
+func (s *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
 	query := fmt.Sprintf("Select %s from %s where %s = %s", s.UserName, s.UserTable, s.UserName, s.BuildParam(0))
 	rows, err := s.DB.QueryContext(ctx, query, userName)
 	if err != nil {
@@ -173,11 +173,11 @@ func (s *SqlSignUpRepository) CheckUserName(ctx context.Context, userName string
 	return true, nil
 }
 
-func (s *SqlSignUpRepository) CheckUserNameAndContact(ctx context.Context, userName string, contact string) (bool, bool, error) {
+func (s *SignUpRepository) CheckUserNameAndContact(ctx context.Context, userName string, contact string) (bool, bool, error) {
 	return s.existUserNameAndField(ctx, userName, s.ContactName, contact)
 }
 
-func (s *SqlSignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
+func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
 	query := fmt.Sprintf("select %s,%s from %s where %s = %s or %s = %s", s.UserName, fieldName, s.UserTable, s.UserName, s.BuildParam(0), fieldName, s.BuildParam(1))
 	rows, err := s.DB.QueryContext(ctx, query, userName, fieldValue)
 	if err != nil {
@@ -213,7 +213,7 @@ func (s *SqlSignUpRepository) existUserNameAndField(ctx context.Context, userNam
 	return nameExist, emailExist, rows.Err()
 }
 
-func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
+func (s *SignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
 	user := make(map[string]interface{})
 	user[s.UserIdName] = userId
 	user[s.UserName] = info.Username
@@ -268,7 +268,7 @@ func (s *SqlSignUpRepository) Save(ctx context.Context, userId string, info sign
 	return true, nil
 }
 
-func (s *SqlSignUpRepository) SavePasswordAndActivate(ctx context.Context, userId, password string) (bool, error) {
+func (s *SignUpRepository) SavePasswordAndActivate(ctx context.Context, userId, password string) (bool, error) {
 	user := make(map[string]interface{})
 	user[s.UserIdName] = userId
 	user[s.PasswordName] = password
@@ -288,7 +288,7 @@ func (s *SqlSignUpRepository) SavePasswordAndActivate(ctx context.Context, userI
 	return s.Activate(ctx, userId)
 }
 
-func (s *SqlSignUpRepository) updateStatus(ctx context.Context, id string, from, to string, version int, password string) (bool, error) {
+func (s *SignUpRepository) updateStatus(ctx context.Context, id string, from, to string, version int, password string) (bool, error) {
 	user := make(map[string]interface{})
 	user[s.StatusName] = to
 	if len(s.UpdatedTimeName) > 0 {

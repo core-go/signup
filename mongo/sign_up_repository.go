@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type MongoSignUpRepository struct {
+type SignUpRepository struct {
 	UserCollection     *mongo.Collection
 	PasswordCollection *mongo.Collection
 	Status             signup.UserStatusConf
@@ -32,7 +32,7 @@ type MongoSignUpRepository struct {
 	Schema       *signup.SignUpSchemaConfig
 }
 
-func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *MongoSignUpRepository {
+func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	var genderMapper signup.GenderMapper
 	if len(options) > 0 {
 		genderMapper = options[0]
@@ -61,7 +61,7 @@ func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwor
 		status = "status"
 	}
 
-	r := &MongoSignUpRepository{
+	r := &SignUpRepository{
 		UserCollection:     userCollection,
 		PasswordCollection: passwordCollection,
 		Status:             statusConfig,
@@ -82,7 +82,7 @@ func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwor
 	return r
 }
 
-func NewSignUpRepository(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userName, contactName, statusName string) *MongoSignUpRepository {
+func NewSignUpRepository(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userName, contactName, statusName string) *SignUpRepository {
 	userCollection := db.Collection(userCollectionName)
 	passwordCollection := userCollection
 	if passwordCollectionName != userCollectionName {
@@ -91,7 +91,7 @@ func NewSignUpRepository(db *mongo.Database, userCollectionName, passwordCollect
 	if len(contactName) == 0 {
 		contactName = "email"
 	}
-	return &MongoSignUpRepository{
+	return &SignUpRepository{
 		UserCollection:     userCollection,
 		PasswordCollection: passwordCollection,
 		Status:             statusConfig,
@@ -104,7 +104,7 @@ func NewSignUpRepository(db *mongo.Database, userCollectionName, passwordCollect
 	}
 }
 
-func (r *MongoSignUpRepository) Activate(ctx context.Context, id string) (bool, error) {
+func (r *SignUpRepository) Activate(ctx context.Context, id string) (bool, error) {
 	version := 3
 	if r.Status.Registered == r.Status.Verifying {
 		version = 2
@@ -112,14 +112,14 @@ func (r *MongoSignUpRepository) Activate(ctx context.Context, id string) (bool, 
 	return r.updateStatus(ctx, id, r.Status.Verifying, r.Status.Activated, version, "")
 }
 
-func (r *MongoSignUpRepository) SentVerifiedCode(ctx context.Context, id string) (bool, error) {
+func (r *SignUpRepository) SentVerifiedCode(ctx context.Context, id string) (bool, error) {
 	if r.Status.Registered == r.Status.Verifying {
 		return true, nil
 	}
 	return r.updateStatus(ctx, id, r.Status.Registered, r.Status.Verifying, 2, "")
 }
 
-func (r *MongoSignUpRepository) updateStatus(ctx context.Context, id string, from, to string, version int, password string) (bool, error) {
+func (r *SignUpRepository) updateStatus(ctx context.Context, id string, from, to string, version int, password string) (bool, error) {
 	query := bson.M{"$and": []bson.M{{"_id": id}, {r.StatusName: from}}}
 	user := make(map[string]interface{})
 	user["_id"] = id
@@ -143,7 +143,7 @@ func (r *MongoSignUpRepository) updateStatus(ctx context.Context, id string, fro
 	return (result.ModifiedCount + result.UpsertedCount + result.MatchedCount) > 0, err
 }
 
-func (r *MongoSignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
+func (r *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
 	query := bson.M{r.UserName: userName}
 	x := r.UserCollection.FindOne(ctx, query)
 	err := x.Err()
@@ -156,11 +156,11 @@ func (r *MongoSignUpRepository) CheckUserName(ctx context.Context, userName stri
 	return true, nil
 }
 
-func (r *MongoSignUpRepository) CheckUserNameAndContact(ctx context.Context, userName string, contact string) (bool, bool, error) {
+func (r *SignUpRepository) CheckUserNameAndContact(ctx context.Context, userName string, contact string) (bool, bool, error) {
 	return r.existUserNameAndField(ctx, userName, r.ContactName, contact)
 }
 
-func (r *MongoSignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
+func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
 	userName = strings.ToLower(userName)
 	fieldValue = strings.ToLower(fieldValue)
 	query := bson.M{"$or": []bson.M{{r.UserName: userName}, {fieldName: fieldValue}}}
@@ -192,7 +192,7 @@ func (r *MongoSignUpRepository) existUserNameAndField(ctx context.Context, userN
 	return nameErr, contactErr, nil
 }
 
-func (r *MongoSignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
+func (r *SignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
 	user := make(map[string]interface{})
 	user["_id"] = userId
 	user[r.UserName] = info.Username
@@ -221,7 +221,7 @@ func (r *MongoSignUpRepository) Save(ctx context.Context, userId string, info si
 	return duplicate, err
 }
 
-func (r *MongoSignUpRepository) SavePasswordAndActivate(ctx context.Context, userId, password string) (bool, error) {
+func (r *SignUpRepository) SavePasswordAndActivate(ctx context.Context, userId, password string) (bool, error) {
 	if r.UserCollection.Name() != r.PasswordCollection.Name() {
 		user := make(map[string]interface{})
 		user["_id"] = userId
@@ -240,7 +240,7 @@ func (r *MongoSignUpRepository) SavePasswordAndActivate(ctx context.Context, use
 	return r.updateStatus(ctx, userId, r.Status.Verifying, r.Status.Activated, version, password)
 }
 
-func (r *MongoSignUpRepository) insertUser(ctx context.Context, userId string, user map[string]interface{}) (bool, error) {
+func (r *SignUpRepository) insertUser(ctx context.Context, userId string, user map[string]interface{}) (bool, error) {
 	_, err := r.UserCollection.InsertOne(ctx, user)
 	if err == nil {
 		return false, nil
