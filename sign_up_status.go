@@ -1,16 +1,16 @@
 package signup
 
 type SignUpStatusConfig struct {
-	OK            *int `mapstructure:"ok"`
-	UsernameError *int `mapstructure:"username"`
-	ContactError  *int `mapstructure:"contact"`
-	Error         *int `mapstructure:"error"`
+	OK            *int `mapstructure:"ok" json:"ok,omitempty" gorm:"column:ok" bson:"ok,omitempty" dynamodbav:"ok,omitempty" firestore:"ok,omitempty"`
+	UsernameError *int `mapstructure:"username" json:"username,omitempty" gorm:"column:username" bson:"username,omitempty" dynamodbav:"username,omitempty" firestore:"username,omitempty"`
+	ContactError  *int `mapstructure:"contact" json:"contact,omitempty" gorm:"column:contact" bson:"contact,omitempty" dynamodbav:"contact,omitempty" firestore:"contact,omitempty"`
+	Error         *int `mapstructure:"error" json:"error,omitempty" gorm:"column:error" bson:"error,omitempty" dynamodbav:"error,omitempty" firestore:"error,omitempty"`
 }
 type SignUpStatus struct {
-	OK            int `mapstructure:"ok"`
-	UsernameError int `mapstructure:"username"`
-	ContactError  int `mapstructure:"contact"`
-	Error         int `mapstructure:"error"`
+	OK            int `mapstructure:"ok" json:"ok,omitempty" gorm:"column:ok" bson:"ok,omitempty" dynamodbav:"ok,omitempty" firestore:"ok,omitempty"`
+	UsernameError int `mapstructure:"username" json:"username,omitempty" gorm:"column:username" bson:"username,omitempty" dynamodbav:"username,omitempty" firestore:"username,omitempty"`
+	ContactError  int `mapstructure:"contact" json:"contact,omitempty" gorm:"column:contact" bson:"contact,omitempty" dynamodbav:"contact,omitempty" firestore:"contact,omitempty"`
+	Error         int `mapstructure:"error" json:"error,omitempty" gorm:"column:error" bson:"error,omitempty" dynamodbav:"error,omitempty" firestore:"error,omitempty"`
 }
 
 func InitSignUpStatus(c *SignUpStatusConfig) SignUpStatus {

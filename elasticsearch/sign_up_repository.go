@@ -8,9 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/core-go/signup"
-	"github.com/elastic/go-elasticsearch"
-	"github.com/elastic/go-elasticsearch/esapi"
-	"github.com/elastic/go-elasticsearch/esutil"
+	"github.com/elastic/go-elasticsearch/v7"
+	"github.com/elastic/go-elasticsearch/v7/esapi"
+	"github.com/elastic/go-elasticsearch/v7/esutil"
 	"strings"
 	"time"
 )
