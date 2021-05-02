@@ -3,18 +3,16 @@ package elasticsearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/core-go/signup"
 	"github.com/elastic/go-elasticsearch"
 	"github.com/elastic/go-elasticsearch/esapi"
 	"github.com/elastic/go-elasticsearch/esutil"
-
-	db "github.com/common-go/elasticsearch"
-	"github.com/common-go/signup"
+	"strings"
+	"time"
 )
 
 type SignUpRepository struct {
@@ -22,7 +20,7 @@ type SignUpRepository struct {
 	UserIndexName      string
 	PasswordIndexName  string
 	Status             signup.UserStatusConf
-	MaxPasswordAge     int
+	MaxPasswordAge     int32
 	MaxPasswordAgeName string
 
 	UserName         string
@@ -39,7 +37,7 @@ type SignUpRepository struct {
 	Schema       *signup.SignUpSchemaConfig
 }
 
-func NewSignUpRepositoryByConfig(db *elasticsearch.Client, userIndexName, passwordIndexName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
+func NewSignUpRepositoryByConfig(db *elasticsearch.Client, userIndexName, passwordIndexName string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	var genderMapper signup.GenderMapper
 	if len(options) > 0 {
 		genderMapper = options[0]
@@ -69,7 +67,7 @@ func NewSignUpRepositoryByConfig(db *elasticsearch.Client, userIndexName, passwo
 	return NewSignUpRepository(db, userIndexName, passwordIndexName, statusConfig, maxPasswordAge, c, genderMapper, userName, contact, password, status)
 }
 
-func NewSignUpRepository(db *elasticsearch.Client, userIndexName, passwordIndexName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, genderMapper signup.GenderMapper, userName, contact, password, status string) *SignUpRepository {
+func NewSignUpRepository(db *elasticsearch.Client, userIndexName, passwordIndexName string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, genderMapper signup.GenderMapper, userName, contact, password, status string) *SignUpRepository {
 	if len(contact) == 0 {
 		contact = "email"
 	}
@@ -156,7 +154,7 @@ func (r *SignUpRepository) CheckUserName(ctx context.Context, userName string) (
 		},
 	}
 	res := make(map[string]interface{})
-	ok, err := db.FindOneAndDecode(ctx, r.Client, []string{r.UserIndexName}, query, &res)
+	ok, err := findOneAndDecode(ctx, r.Client, []string{r.UserIndexName}, query, &res)
 	if !ok || err != nil {
 		return false, err
 	}
@@ -182,7 +180,7 @@ func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 		},
 	}
 	res := make([]map[string]interface{}, 0)
-	ok, err := db.FindAndDecode(ctx, r.Client, []string{r.UserIndexName}, query, &res)
+	ok, err := findAndDecode(ctx, r.Client, []string{r.UserIndexName}, query, &res)
 	if !ok || err != nil {
 		return false, false, err
 	}
@@ -268,4 +266,66 @@ func (r *SignUpRepository) insertUser(ctx context.Context, userId string, user m
 	}
 	//fmt.Printf("[%s] %s; version=%d", res.Status(), temp["result"], int(temp["_version"].(float64)))
 	return false, nil
+}
+
+func findOneAndDecode(ctx context.Context, es *elasticsearch.Client, index []string, query map[string]interface{}, result interface{}) (bool, error) {
+	req := esapi.SearchRequest{
+		Index:          index,
+		Body:           esutil.NewJSONReader(query),
+		TrackTotalHits: true,
+		Pretty:         true,
+	}
+	res, err := req.Do(ctx, es)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return false, errors.New("response error")
+	} else {
+		var r map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+			return false, err
+		} else {
+			hits := r["hits"].(map[string]interface{})["hits"].([]interface{})
+			total := int(r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"].(float64))
+			if total >= 1 {
+				if err := json.NewDecoder(esutil.NewJSONReader(hits[0])).Decode(&result); err != nil {
+					return false, err
+				}
+				return true, nil
+			}
+			return false, nil
+		}
+	}
+}
+
+func findAndDecode(ctx context.Context, es *elasticsearch.Client, indexName []string, query map[string]interface{}, result interface{}) (bool, error) {
+	req := esapi.SearchRequest{
+		Index:          indexName,
+		Body:           esutil.NewJSONReader(query),
+		TrackTotalHits: true,
+		Pretty:         true,
+	}
+	res, err := req.Do(ctx, es)
+	if err != nil {
+		return false, err
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		return false, errors.New("response error")
+	} else {
+		var r map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+			return false, err
+		} else {
+			hits := r["hits"].(map[string]interface{})["hits"].([]interface{})
+			if err := json.NewDecoder(esutil.NewJSONReader(hits)).Decode(&result); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+	}
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 	"github.com/aws/aws-sdk-go/service/dynamodb/expression"
-	"github.com/common-go/signup"
+	"github.com/core-go/signup"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +17,7 @@ type SignUpRepository struct {
 	DB                 *dynamodb.DynamoDB
 	UserTableName      string
 	PasswordTableName  string
-	MaxPasswordAge     int
+	MaxPasswordAge     int32
 	Status             signup.UserStatusConf
 	MaxPasswordAgeName string
 
@@ -35,7 +35,7 @@ type SignUpRepository struct {
 	Schema       *signup.SignUpSchemaConfig
 }
 
-func NewSignUpRepositoryByConfig(dynamoDB *dynamodb.DynamoDB, userTableName string, passwordTableName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
+func NewSignUpRepositoryByConfig(dynamoDB *dynamodb.DynamoDB, userTableName string, passwordTableName string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	var genderMapper signup.GenderMapper
 	if len(options) > 0 {
 		genderMapper = options[0]
@@ -84,7 +84,7 @@ func NewSignUpRepositoryByConfig(dynamoDB *dynamodb.DynamoDB, userTableName stri
 	return r
 }
 
-func NewSignUpRepository(dynamoDB *dynamodb.DynamoDB, userTableName string, passwordTableName string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userName, contactName, statusName string) *SignUpRepository {
+func NewSignUpRepository(dynamoDB *dynamodb.DynamoDB, userTableName string, passwordTableName string, statusConfig signup.UserStatusConf, maxPasswordAge int32, maxPasswordAgeName string, userName, contactName, statusName string) *SignUpRepository {
 	if len(contactName) == 0 {
 		contactName = "email"
 	}

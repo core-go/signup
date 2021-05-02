@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/core-go/signup"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/common-go/signup"
 )
 
 const (
@@ -26,7 +25,7 @@ type SignUpRepository struct {
 	UserTable          string
 	PasswordTable      string
 	Status             signup.UserStatusConf
-	MaxPasswordAge     int
+	MaxPasswordAge     int32
 	MaxPasswordAgeName string
 
 	UserIdName       string
@@ -47,7 +46,7 @@ type SignUpRepository struct {
 	BuildParam func(i int) string
 }
 
-func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
+func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	if len(c.UserName) == 0 {
 		c.UserName = "username"
 	}
@@ -114,7 +113,7 @@ func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, st
 	return r
 }
 
-func NewSignUpRepository(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userId string, options ...string) *SignUpRepository {
+func NewSignUpRepository(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int32, maxPasswordAgeName string, userId string, options ...string) *SignUpRepository {
 	var contactName string
 	if len(options) > 0 && len(options[0]) > 0 {
 		contactName = options[0]

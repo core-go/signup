@@ -4,7 +4,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"context"
 	"fmt"
-	"github.com/common-go/signup"
+	"github.com/core-go/signup"
 	"strings"
 )
 
@@ -13,7 +13,7 @@ type SignUpRepository struct {
 	UserCollection     *firestore.CollectionRef
 	PasswordCollection *firestore.CollectionRef
 	Status             signup.UserStatusConf
-	MaxPasswordAge     int
+	MaxPasswordAge     int32
 	MaxPasswordAgeName string
 
 	UserName         string
@@ -29,7 +29,7 @@ type SignUpRepository struct {
 	Schema       *signup.SignUpSchemaConfig
 }
 
-func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
+func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	var genderMapper signup.GenderMapper
 	if len(options) > 0 {
 		genderMapper = options[0]
@@ -83,7 +83,7 @@ func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, p
 	return r
 }
 
-func NewSignUpRepository(client *firestore.Client, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userName, contactName string) *SignUpRepository {
+func NewSignUpRepository(client *firestore.Client, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int32, maxPasswordAgeName string, userName, contactName string) *SignUpRepository {
 	userCollection := client.Collection(userCollectionName)
 	passwordCollection := userCollection
 	if passwordCollectionName != userCollectionName {

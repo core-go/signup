@@ -1,8 +1,8 @@
 package mail
 
 import (
-	"github.com/common-go/mail"
-	"github.com/common-go/signup"
+	"github.com/core-go/mail"
+	"github.com/core-go/signup"
 )
 
 type SignUpConfigWithEmailTemplate struct {

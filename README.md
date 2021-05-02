@@ -7,22 +7,13 @@
 - SignUpService
 
 ## Installation
-
-Please make sure to initialize a Go module before installing common-go/signup:
+Please make sure to initialize a Go module before installing core-go/signup:
 
 ```shell
-go get -u github.com/common-go/signup
+go get -u github.com/core-go/signup
 ```
 
 Import:
-
 ```go
-import "github.com/common-go/signup"
+import "github.com/core-go/signup"
 ```
-
-## Implementations of SignUpRepository
-- sql: SqlSignUpRepository
-- [mongo](https://github.com/common-go/signup-mongo)
-- [dynamodb](https://github.com/common-go/signup-dynamodb)
-- [firestore](https://github.com/common-go/signup-firestore)
-- [elasticsearch](https://github.com/common-go/signup-elasticsearch)

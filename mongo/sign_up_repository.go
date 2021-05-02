@@ -3,7 +3,7 @@ package mongo
 import (
 	"context"
 	"fmt"
-	"github.com/common-go/signup"
+	"github.com/core-go/signup"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -15,7 +15,7 @@ type SignUpRepository struct {
 	UserCollection     *mongo.Collection
 	PasswordCollection *mongo.Collection
 	Status             signup.UserStatusConf
-	MaxPasswordAge     int
+	MaxPasswordAge     int32
 	MaxPasswordAgeName string
 
 	UserName         string
@@ -32,7 +32,7 @@ type SignUpRepository struct {
 	Schema       *signup.SignUpSchemaConfig
 }
 
-func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
+func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	var genderMapper signup.GenderMapper
 	if len(options) > 0 {
 		genderMapper = options[0]
@@ -82,7 +82,7 @@ func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwor
 	return r
 }
 
-func NewSignUpRepository(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int, maxPasswordAgeName string, userName, contactName, statusName string) *SignUpRepository {
+func NewSignUpRepository(db *mongo.Database, userCollectionName, passwordCollectionName string, statusConfig signup.UserStatusConf, maxPasswordAge int32, maxPasswordAgeName string, userName, contactName, statusName string) *SignUpRepository {
 	userCollection := db.Collection(userCollectionName)
 	passwordCollection := userCollection
 	if passwordCollectionName != userCollectionName {
