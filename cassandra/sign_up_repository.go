@@ -3,8 +3,6 @@ package cassandra
 import (
 	"context"
 	"errors"
-
-	// "database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -14,7 +12,7 @@ import (
 )
 
 type SignUpRepository struct {
-	Cassandra          *gocql.ClusterConfig
+	Session            *gocql.Session
 	UserTable          string
 	PasswordTable      string
 	Status             signup.UserStatusConf
@@ -36,7 +34,7 @@ type SignUpRepository struct {
 	Schema       *signup.SignUpSchemaConfig
 }
 
-func NewSignUpRepositoryByConfig(db *gocql.ClusterConfig, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
+func NewSignUpRepositoryByConfig(session *gocql.Session, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
 	if len(c.UserName) == 0 {
 		c.UserName = "username"
 	}
@@ -77,7 +75,7 @@ func NewSignUpRepositoryByConfig(db *gocql.ClusterConfig, userTable, passwordTab
 	password := c.Password
 	status := c.Status
 	r := &SignUpRepository{
-		Cassandra:          db,
+		Session:            session,
 		UserTable:          userTable,
 		PasswordTable:      passwordTable,
 		Status:             statusConfig,
@@ -99,7 +97,7 @@ func NewSignUpRepositoryByConfig(db *gocql.ClusterConfig, userTable, passwordTab
 	return r
 }
 
-func NewSignUpRepository(db *gocql.ClusterConfig, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int32, maxPasswordAgeName string, userId string, options ...string) *SignUpRepository {
+func NewSignUpRepository(session *gocql.Session, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int32, maxPasswordAgeName string, userId string, options ...string) *SignUpRepository {
 	var contactName string
 	if len(options) > 0 && len(options[0]) > 0 {
 		contactName = options[0]
@@ -108,7 +106,7 @@ func NewSignUpRepository(db *gocql.ClusterConfig, userTable, passwordTable strin
 		contactName = "email"
 	}
 	return &SignUpRepository{
-		Cassandra:          db,
+		Session:            session,
 		UserTable:          userTable,
 		PasswordTable:      passwordTable,
 		Status:             statusConfig,
@@ -137,10 +135,7 @@ func (s *SignUpRepository) SentVerifiedCode(ctx context.Context, id string) (boo
 	return s.updateStatus(ctx, id, s.Status.Registered, s.Status.Verifying, 2, "")
 }
 func (s *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
-	session, er0 := s.Cassandra.CreateSession()
-	if er0 != nil {
-		return false, er0
-	}
+	session := s.Session
 	query := fmt.Sprintf("Select %s from %s where %s = ?", s.UserName, s.UserTable, s.UserName)
 	var username string
 	err := session.Query(query, userName).Scan(&username)
@@ -155,10 +150,7 @@ func (s *SignUpRepository) CheckUserNameAndContact(ctx context.Context, userName
 }
 
 func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
-	session, er0 := s.Cassandra.CreateSession()
-	if er0 != nil {
-		return false, false, er0
-	}
+	session := s.Session
 	queryUsername := fmt.Sprintf("select %s from %s where %s = ? ALLOW FILTERING", s.UserName, s.UserTable, s.UserName)
 	queryEmail := fmt.Sprintf("select %s from %s where %s = ? ALLOW FILTERING", fieldName, s.UserTable, fieldName)
 	var userNameResult string
@@ -172,7 +164,7 @@ func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 	if userNameResult == userName || emailResult == fieldValue {
 		nameExist = true
 		emailExist = true
-		myErr := errors.New("Username or email already exists!")
+		myErr := errors.New("username or email already existed")
 		return false, false, myErr
 	}
 	defer session.Close()
@@ -180,11 +172,7 @@ func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 }
 
 func (s *SignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
-	session, er0 := s.Cassandra.CreateSession()
-	if er0 != nil {
-		return false, er0
-	}
-	// tạo đối tượng user với các thuộc tính trong đối tượng.
+	session := s.Session
 	user := make(map[string]interface{})
 	user[s.UserIdName] = userId
 	user[s.UserName] = info.Username
@@ -193,26 +181,20 @@ func (s *SignUpRepository) Save(ctx context.Context, userId string, info signup.
 	if s.MaxPasswordAge > 0 && len(s.MaxPasswordAgeName) > 0 {
 		user[s.MaxPasswordAgeName] = s.MaxPasswordAge
 	}
-	// t
 	if s.Schema != nil {
 		user = signup.BuildMap(ctx, user, userId, info, *s.Schema, s.GenderMapper)
 	}
 
 	if s.UserTable != s.PasswordTable && len(info.Password) > 0 {
-		// kiểm tra password và tạo đối tượng pass
 		pass := make(map[string]interface{})
 		pass[s.UserIdName] = userId
 		pass[s.PasswordName] = info.Password
-		// tạo query lưu dữ liệu cho table user
 		query, value := BuildInsert(s.UserTable, user)
-		// tạo query lưu dữ liệu password cho table authentication
 		passQuery, passValue := BuildInsert(s.PasswordTable, pass)
-		// lưu user
 		er1 := session.Query(query, value...).Exec()
 		if er1 != nil {
 			return false, er1
 		}
-		// lưu password
 		er2 := session.Query(passQuery, passValue...).Exec()
 		if er2 != nil {
 			return false, er2
@@ -232,10 +214,7 @@ func (s *SignUpRepository) Save(ctx context.Context, userId string, info signup.
 }
 
 func (s *SignUpRepository) SavePasswordAndActivate(ctx context.Context, userId, password string) (bool, error) {
-	session, er0 := s.Cassandra.CreateSession()
-	if er0 != nil {
-		return false, er0
-	}
+	session := s.Session
 	user := make(map[string]interface{})
 	user[s.UserIdName] = userId
 	user[s.PasswordName] = password
@@ -248,10 +227,7 @@ func (s *SignUpRepository) SavePasswordAndActivate(ctx context.Context, userId, 
 }
 
 func (s *SignUpRepository) updateStatus(ctx context.Context, id string, from, to string, version int, password string) (bool, error) {
-	session, er0 := s.Cassandra.CreateSession()
-	if er0 != nil {
-		return false, er0
-	}
+	session := s.Session
 	user := make(map[string]interface{})
 	user[s.StatusName] = to
 	if len(s.UpdatedTimeName) > 0 {
@@ -280,7 +256,6 @@ func (s *SignUpRepository) updateStatus(ctx context.Context, id string, from, to
 		// s.StatusName,
 	)
 	values = append(values, id)
-	// values = append(values, from)
 	query := fmt.Sprintf("update %v set %v where %v", table, strings.Join(querySet, ","), queryWhere)
 	er1 := session.Query(query, values...).Exec()
 	if er1 != nil {
