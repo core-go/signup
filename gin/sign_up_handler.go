@@ -13,14 +13,13 @@ import (
 type SignUpHandler struct {
 	SignUpService s.SignUpService
 	ErrorStatus   int
-	Error         func(context.Context, string)
-	Decrypt       func(cipherText string, secretKey string) (string, error)
-	EncryptionKey string
+	Error         func(context.Context, string, ...map[string]interface{})
+	Decrypt       func(string) (string, error)
 	Log           func(ctx context.Context, resource string, action string, success bool, desc string) error
 	Config        s.SignUpActionConfig
 }
 
-func NewSignUpHandlerWithDecrypter(signUpService s.SignUpService, errorStatus int, logError func(context.Context, string), decrypt func(cipherText string, secretKey string) (string, error), encryptionKey string, conf *s.SignUpActionConfig, options...func(context.Context, string, string, bool, string) error) *SignUpHandler {
+func NewSignUpHandlerWithDecrypter(signUpService s.SignUpService, errorStatus int, logError func(context.Context, string, ...map[string]interface{}), decrypt func(cipherText string) (string, error), conf *s.SignUpActionConfig, options...func(context.Context, string, string, bool, string) error) *SignUpHandler {
 	var c s.SignUpActionConfig
 	if conf != nil {
 		c.Resource = conf.Resource
@@ -43,11 +42,11 @@ func NewSignUpHandlerWithDecrypter(signUpService s.SignUpService, errorStatus in
 	if len(options) >= 1 {
 		writeLog = options[0]
 	}
-	return &SignUpHandler{SignUpService: signUpService, ErrorStatus: errorStatus, Config: c, Error: logError, Log: writeLog, Decrypt: decrypt, EncryptionKey: encryptionKey}
+	return &SignUpHandler{SignUpService: signUpService, ErrorStatus: errorStatus, Config: c, Error: logError, Log: writeLog, Decrypt: decrypt}
 }
 
-func NewSignUpHandler(signUpService s.SignUpService, errorStatus int, logError func(context.Context, string), conf *s.SignUpActionConfig, options...func(context.Context, string, string, bool, string) error) *SignUpHandler {
-	return NewSignUpHandlerWithDecrypter(signUpService, errorStatus, logError, nil, "", conf, options...)
+func NewSignUpHandler(signUpService s.SignUpService, errorStatus int, logError func(context.Context, string, ...map[string]interface{}), conf *s.SignUpActionConfig, options...func(context.Context, string, string, bool, string) error) *SignUpHandler {
+	return NewSignUpHandlerWithDecrypter(signUpService, errorStatus, logError, nil, conf, options...)
 }
 
 func (h *SignUpHandler) SignUp(ctx *gin.Context) {
@@ -68,8 +67,8 @@ func (h *SignUpHandler) SignUp(ctx *gin.Context) {
 		ctx.String(http.StatusBadRequest, "Cannot decode sign up info")
 		return
 	}
-	if h.Decrypt != nil && len(h.EncryptionKey) > 0 {
-		decodedPassword, er2 := h.Decrypt(user.Password, h.EncryptionKey)
+	if h.Decrypt != nil {
+		decodedPassword, er2 := h.Decrypt(user.Password)
 		if er2 != nil {
 			if h.Error != nil {
 				msg := "cannot decode password: " + er2.Error()
