@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/core-go/signup"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/core-go/signup"
 )
 
 const (
@@ -155,7 +156,7 @@ func (s *SignUpRepository) SentVerifiedCode(ctx context.Context, id string) (boo
 	return s.updateStatus(ctx, id, s.Status.Registered, s.Status.Verifying, 2, "")
 }
 func (s *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
-	query := fmt.Sprintf("Select %s from %s where %s = %s", s.UserName, s.UserTable, s.UserName, s.BuildParam(0))
+	query := fmt.Sprintf("Select %s from %s where %s = %s", s.UserName, s.UserTable, s.UserName, s.BuildParam(1))
 	rows, err := s.DB.QueryContext(ctx, query, userName)
 	if err != nil {
 		return false, err
@@ -177,7 +178,7 @@ func (s *SignUpRepository) CheckUserNameAndContact(ctx context.Context, userName
 }
 
 func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
-	query := fmt.Sprintf("select %s,%s from %s where %s = %s or %s = %s", s.UserName, fieldName, s.UserTable, s.UserName, s.BuildParam(0), fieldName, s.BuildParam(1))
+	query := fmt.Sprintf("select %s,%s from %s where %s = %s or %s = %s", s.UserName, fieldName, s.UserTable, s.UserName, s.BuildParam(1), fieldName, s.BuildParam(2))
 	rows, err := s.DB.QueryContext(ctx, query, userName, fieldValue)
 	if err != nil {
 		return false, false, err
@@ -306,7 +307,7 @@ func (s *SignUpRepository) updateStatus(ctx context.Context, id string, from, to
 	if err1 != nil {
 		return false, err1
 	}
-	colNumber := 0
+	colNumber := 1
 	var values []interface{}
 	table := s.UserTable
 	querySet := make([]string, 0)
@@ -382,7 +383,7 @@ func BuildInsert(tableName string, user map[string]interface{}, buildParam func(
 	column := fmt.Sprintf("(%v)", strings.Join(cols, ","))
 	numCol := len(cols)
 	var arrValue []string
-	for i := 0; i < numCol; i++ {
+	for i := 1; i <= numCol; i++ {
 		arrValue = append(arrValue, buildParam(i))
 	}
 	value := fmt.Sprintf("(%v)", strings.Join(arrValue, ","))

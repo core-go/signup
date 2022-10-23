@@ -3,10 +3,11 @@ package mail
 import (
 	"context"
 	"fmt"
-	"github.com/core-go/mail"
-	"github.com/core-go/signup"
 	"strings"
 	"time"
+
+	"github.com/core-go/mail"
+	"github.com/core-go/signup"
 )
 
 type VerifiedEmailSender struct {
