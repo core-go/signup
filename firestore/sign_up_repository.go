@@ -16,7 +16,7 @@ type SignUpRepository struct {
 	MaxPasswordAge     int32
 	MaxPasswordAgeName string
 
-	UserName         string
+	Username         string
 	ContactName      string
 	StatusName       string
 	PasswordName     string
@@ -40,7 +40,7 @@ func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, p
 		passwordCollection = client.Collection(passwordCollectionName)
 	}
 
-	userName := c.UserName
+	userName := c.Username
 	contact := c.Contact
 	password := c.Password
 	status := c.Status
@@ -61,6 +61,8 @@ func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, p
 	if len(status) == 0 {
 		status = "status"
 	}
+	c.CreatedTime = ""
+	c.UpdatedTime = ""
 
 	r := &SignUpRepository{
 		Client:             client,
@@ -71,7 +73,7 @@ func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, p
 		GenderMapper:       genderMapper,
 		Schema:             c,
 		MaxPasswordAgeName: c.MaxPasswordAge,
-		UserName:           userName,
+		Username:           userName,
 		ContactName:        contact,
 		PasswordName:       password,
 		StatusName:         status,
@@ -99,7 +101,7 @@ func NewSignUpRepository(client *firestore.Client, userCollectionName, passwordC
 		Status:             statusConfig,
 		MaxPasswordAge:     maxPasswordAge,
 		MaxPasswordAgeName: maxPasswordAgeName,
-		UserName:           userName,
+		Username:           userName,
 		ContactName:        contactName,
 		PasswordName:       "password",
 		StatusName:         "status",
@@ -148,7 +150,7 @@ func (r *SignUpRepository) updateStatus(ctx context.Context, id string, from, to
 }
 
 func (r *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
-	_, err := r.UserCollection.Where(r.UserName, "=", userName).Limit(1).Documents(ctx).GetAll()
+	_, err := r.UserCollection.Where(r.Username, "=", userName).Limit(1).Documents(ctx).GetAll()
 	if err != nil {
 		if strings.Index(err.Error(), "Document already exists") >= 0 {
 			return false, nil
@@ -166,7 +168,7 @@ func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 	userName = strings.ToLower(userName)
 	fieldValue = strings.ToLower(fieldValue)
 
-	docs, err := r.UserCollection.Where(r.UserName, "==", userName).Documents(ctx).GetAll()
+	docs, err := r.UserCollection.Where(r.Username, "==", userName).Documents(ctx).GetAll()
 	if err != nil {
 		return false, false, err
 	}
@@ -187,7 +189,7 @@ func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 			break
 		}
 		mapValue := doc.Data()
-		if mapValue[r.UserName] == userName {
+		if mapValue[r.Username] == userName {
 			nameErr = true
 		}
 		if mapValue[fieldName] == fieldValue {
@@ -200,7 +202,7 @@ func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 
 func (r *SignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
 	user := make(map[string]interface{})
-	user[r.UserName] = info.Username
+	user[r.Username] = info.Username
 	user[r.ContactName] = info.Contact
 	user[r.StatusName] = r.Status.Registered
 	if r.MaxPasswordAge > 0 && len(r.MaxPasswordAgeName) > 0 {

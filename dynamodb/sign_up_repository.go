@@ -40,7 +40,7 @@ func NewSignUpRepositoryByConfig(dynamoDB *dynamodb.DynamoDB, userTableName stri
 	if len(options) > 0 {
 		genderMapper = options[0]
 	}
-	userName := c.UserName
+	userName := c.Username
 	contact := c.Contact
 	password := c.Password
 	status := c.Status

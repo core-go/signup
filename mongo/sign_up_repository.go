@@ -18,7 +18,7 @@ type SignUpRepository struct {
 	MaxPasswordAge     int32
 	MaxPasswordAgeName string
 
-	UserName         string
+	Username         string
 	ContactName      string
 	StatusName       string
 	PasswordName     string
@@ -43,13 +43,13 @@ func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwor
 		passwordCollection = db.Collection(passwordCollectionName)
 	}
 
-	userName := c.UserName
+	userName := c.Username
 	contact := c.Contact
 	password := c.Password
 	status := c.Status
 
 	if len(userName) == 0 {
-		userName = "userName"
+		userName = "username"
 	}
 	if len(contact) == 0 {
 		contact = "email"
@@ -69,7 +69,7 @@ func NewSignUpRepositoryByConfig(db *mongo.Database, userCollectionName, passwor
 		GenderMapper:       genderMapper,
 		Schema:             c,
 		MaxPasswordAgeName: c.MaxPasswordAge,
-		UserName:           userName,
+		Username:           userName,
 		ContactName:        contact,
 		PasswordName:       password,
 		StatusName:         status,
@@ -97,7 +97,7 @@ func NewSignUpRepository(db *mongo.Database, userCollectionName, passwordCollect
 		Status:             statusConfig,
 		MaxPasswordAge:     maxPasswordAge,
 		MaxPasswordAgeName: maxPasswordAgeName,
-		UserName:           userName,
+		Username:           userName,
 		ContactName:        contactName,
 		PasswordName:       "password",
 		StatusName:         statusName,
@@ -144,7 +144,7 @@ func (r *SignUpRepository) updateStatus(ctx context.Context, id string, from, to
 }
 
 func (r *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
-	query := bson.M{r.UserName: userName}
+	query := bson.M{r.Username: userName}
 	x := r.UserCollection.FindOne(ctx, query)
 	err := x.Err()
 	if err != nil {
@@ -163,12 +163,12 @@ func (r *SignUpRepository) CheckUserNameAndContact(ctx context.Context, userName
 func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
 	userName = strings.ToLower(userName)
 	fieldValue = strings.ToLower(fieldValue)
-	query := bson.M{"$or": []bson.M{{r.UserName: userName}, {fieldName: fieldValue}}}
+	query := bson.M{"$or": []bson.M{{r.Username: userName}, {fieldName: fieldValue}}}
 
 	findOptions := options.Find()
 	findOptions.SetLimit(50)
 	var fields = bson.M{}
-	fields[r.UserName] = 1
+	fields[r.Username] = 1
 	fields[fieldName] = 1
 
 	cur, err := r.UserCollection.Find(ctx, query, findOptions)
@@ -178,7 +178,7 @@ func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 	nameErr := false
 	contactErr := false
 	for cur.Next(context.TODO()) {
-		name := cur.Current.Lookup(r.UserName).StringValue()
+		name := cur.Current.Lookup(r.Username).StringValue()
 		c := cur.Current.Lookup(fieldName).StringValue()
 		if name == userName {
 			nameErr = true
@@ -195,7 +195,7 @@ func (r *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 func (r *SignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
 	user := make(map[string]interface{})
 	user["_id"] = userId
-	user[r.UserName] = info.Username
+	user[r.Username] = info.Username
 	user[r.ContactName] = info.Contact
 	user[r.StatusName] = r.Status.Registered
 	if r.MaxPasswordAge > 0 && len(r.MaxPasswordAgeName) > 0 {

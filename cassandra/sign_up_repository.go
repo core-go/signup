@@ -20,7 +20,7 @@ type SignUpRepository struct {
 	MaxPasswordAgeName string
 
 	UserIdName       string
-	UserName         string
+	Username         string
 	ContactName      string
 	StatusName       string
 	PasswordName     string
@@ -35,8 +35,8 @@ type SignUpRepository struct {
 }
 
 func NewSignUpRepositoryByConfig(session *gocql.Session, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
-	if len(c.UserName) == 0 {
-		c.UserName = "username"
+	if len(c.Username) == 0 {
+		c.Username = "username"
 	}
 	if len(c.Contact) == 0 {
 		c.Contact = "email"
@@ -52,7 +52,7 @@ func NewSignUpRepositoryByConfig(session *gocql.Session, userTable, passwordTabl
 		genderMapper = options[0]
 	}
 	c.UserId = strings.ToLower(c.UserId)
-	c.UserName = strings.ToLower(c.UserName)
+	c.Username = strings.ToLower(c.Username)
 	c.Contact = strings.ToLower(c.Contact)
 	c.Password = strings.ToLower(c.Password)
 	c.Status = strings.ToLower(c.Status)
@@ -70,7 +70,7 @@ func NewSignUpRepositoryByConfig(session *gocql.Session, userTable, passwordTabl
 	c.UpdatedBy = strings.ToLower(c.UpdatedBy)
 	c.Version = strings.ToLower(c.Version)
 
-	userName := c.UserName
+	userName := c.Username
 	contact := c.Contact
 	password := c.Password
 	status := c.Status
@@ -84,7 +84,7 @@ func NewSignUpRepositoryByConfig(session *gocql.Session, userTable, passwordTabl
 		Schema:             c,
 		MaxPasswordAgeName: c.MaxPasswordAge,
 		UserIdName:         c.UserId,
-		UserName:           userName,
+		Username:           userName,
 		ContactName:        contact,
 		PasswordName:       password,
 		StatusName:         status,
@@ -113,7 +113,7 @@ func NewSignUpRepository(session *gocql.Session, userTable, passwordTable string
 		MaxPasswordAge:     maxPasswordAge,
 		MaxPasswordAgeName: maxPasswordAgeName,
 		UserIdName:         userId,
-		UserName:           "username",
+		Username:           "username",
 		ContactName:        contactName,
 		PasswordName:       "password",
 		StatusName:         "status",
@@ -136,7 +136,7 @@ func (s *SignUpRepository) SentVerifiedCode(ctx context.Context, id string) (boo
 }
 func (s *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
 	session := s.Session
-	query := fmt.Sprintf("Select %s from %s where %s = ?", s.UserName, s.UserTable, s.UserName)
+	query := fmt.Sprintf("Select %s from %s where %s = ?", s.Username, s.UserTable, s.Username)
 	var username string
 	err := session.Query(query, userName).Scan(&username)
 	if err != nil {
@@ -151,7 +151,7 @@ func (s *SignUpRepository) CheckUserNameAndContact(ctx context.Context, userName
 
 func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
 	session := s.Session
-	queryUsername := fmt.Sprintf("select %s from %s where %s = ? ALLOW FILTERING", s.UserName, s.UserTable, s.UserName)
+	queryUsername := fmt.Sprintf("select %s from %s where %s = ? ALLOW FILTERING", s.Username, s.UserTable, s.Username)
 	queryEmail := fmt.Sprintf("select %s from %s where %s = ? ALLOW FILTERING", fieldName, s.UserTable, fieldName)
 	var userNameResult string
 	var emailResult string
@@ -175,7 +175,7 @@ func (s *SignUpRepository) Save(ctx context.Context, userId string, info signup.
 	session := s.Session
 	user := make(map[string]interface{})
 	user[s.UserIdName] = userId
-	user[s.UserName] = info.Username
+	user[s.Username] = info.Username
 	user[s.ContactName] = info.Contact
 	user[s.StatusName] = s.Status.Registered
 	if s.MaxPasswordAge > 0 && len(s.MaxPasswordAgeName) > 0 {

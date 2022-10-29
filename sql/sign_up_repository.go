@@ -30,7 +30,7 @@ type SignUpRepository struct {
 	MaxPasswordAgeName string
 
 	UserIdName       string
-	UserName         string
+	Username         string
 	ContactName      string
 	StatusName       string
 	PasswordName     string
@@ -48,8 +48,8 @@ type SignUpRepository struct {
 }
 
 func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, statusConfig signup.UserStatusConf, maxPasswordAge int32, c *signup.SignUpSchemaConfig, options ...signup.GenderMapper) *SignUpRepository {
-	if len(c.UserName) == 0 {
-		c.UserName = "username"
+	if len(c.Username) == 0 {
+		c.Username = "username"
 	}
 	if len(c.Contact) == 0 {
 		c.Contact = "email"
@@ -65,7 +65,7 @@ func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, st
 		genderMapper = options[0]
 	}
 	c.UserId = strings.ToLower(c.UserId)
-	c.UserName = strings.ToLower(c.UserName)
+	c.Username = strings.ToLower(c.Username)
 	c.Contact = strings.ToLower(c.Contact)
 	c.Password = strings.ToLower(c.Password)
 	c.Status = strings.ToLower(c.Status)
@@ -83,7 +83,7 @@ func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, st
 	c.UpdatedBy = strings.ToLower(c.UpdatedBy)
 	c.Version = strings.ToLower(c.Version)
 
-	userName := c.UserName
+	userName := c.Username
 	contact := c.Contact
 	password := c.Password
 	status := c.Status
@@ -99,7 +99,7 @@ func NewSignUpRepositoryByConfig(db *sql.DB, userTable, passwordTable string, st
 		Schema:             c,
 		MaxPasswordAgeName: c.MaxPasswordAge,
 		UserIdName:         c.UserId,
-		UserName:           userName,
+		Username:           userName,
 		ContactName:        contact,
 		PasswordName:       password,
 		StatusName:         status,
@@ -132,7 +132,7 @@ func NewSignUpRepository(db *sql.DB, userTable, passwordTable string, statusConf
 		MaxPasswordAge:     maxPasswordAge,
 		MaxPasswordAgeName: maxPasswordAgeName,
 		UserIdName:         userId,
-		UserName:           "username",
+		Username:           "username",
 		ContactName:        contactName,
 		PasswordName:       "password",
 		StatusName:         "status",
@@ -156,7 +156,7 @@ func (s *SignUpRepository) SentVerifiedCode(ctx context.Context, id string) (boo
 	return s.updateStatus(ctx, id, s.Status.Registered, s.Status.Verifying, 2, "")
 }
 func (s *SignUpRepository) CheckUserName(ctx context.Context, userName string) (bool, error) {
-	query := fmt.Sprintf("Select %s from %s where %s = %s", s.UserName, s.UserTable, s.UserName, s.BuildParam(1))
+	query := fmt.Sprintf("select %s from %s where %s = %s", s.Username, s.UserTable, s.Username, s.BuildParam(1))
 	rows, err := s.DB.QueryContext(ctx, query, userName)
 	if err != nil {
 		return false, err
@@ -178,7 +178,7 @@ func (s *SignUpRepository) CheckUserNameAndContact(ctx context.Context, userName
 }
 
 func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName string, fieldName string, fieldValue string) (bool, bool, error) {
-	query := fmt.Sprintf("select %s,%s from %s where %s = %s or %s = %s", s.UserName, fieldName, s.UserTable, s.UserName, s.BuildParam(1), fieldName, s.BuildParam(2))
+	query := fmt.Sprintf("select %s,%s from %s where %s = %s or %s = %s", s.Username, fieldName, s.UserTable, s.Username, s.BuildParam(1), fieldName, s.BuildParam(2))
 	rows, err := s.DB.QueryContext(ctx, query, userName, fieldValue)
 	if err != nil {
 		return false, false, err
@@ -203,7 +203,7 @@ func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 			val := columnPointers[i].(*interface{})
 			arr[colName] = *val
 		}
-		if string(arr[s.UserName].([]byte)) == userName {
+		if string(arr[s.Username].([]byte)) == userName {
 			nameExist = true
 		}
 		if string(arr[fieldName].([]byte)) == fieldValue {
@@ -216,7 +216,7 @@ func (s *SignUpRepository) existUserNameAndField(ctx context.Context, userName s
 func (s *SignUpRepository) Save(ctx context.Context, userId string, info signup.SignUpInfo) (bool, error) {
 	user := make(map[string]interface{})
 	user[s.UserIdName] = userId
-	user[s.UserName] = info.Username
+	user[s.Username] = info.Username
 	user[s.ContactName] = info.Contact
 	user[s.StatusName] = s.Status.Registered
 	if s.MaxPasswordAge > 0 && len(s.MaxPasswordAgeName) > 0 {
