@@ -52,7 +52,7 @@ func NewSignUpRepositoryByConfig(db *elasticsearch.Client, userIndexName, passwo
 		}
 	*/
 	if len(userName) == 0 {
-		userName = "userName"
+		userName = "username"
 	}
 	if len(contact) == 0 {
 		contact = "email"

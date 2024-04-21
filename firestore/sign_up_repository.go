@@ -50,7 +50,7 @@ func NewSignUpRepositoryByConfig(client *firestore.Client, userCollectionName, p
 		}
 	*/
 	if len(userName) == 0 {
-		userName = "userName"
+		userName = "username"
 	}
 	if len(contact) == 0 {
 		contact = "email"

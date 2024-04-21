@@ -50,7 +50,7 @@ func NewSignUpRepositoryByConfig(dynamoDB *dynamodb.DynamoDB, userTableName stri
 		}
 	*/
 	if len(userName) == 0 {
-		userName = "userName"
+		userName = "username"
 	}
 	if len(contact) == 0 {
 		contact = "email"
